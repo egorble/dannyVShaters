@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Danny VS Haters</title>
+    
+    <!-- Meta tags for Cross-Origin Isolation - CRITICAL for SharedArrayBuffer -->
+    <meta http-equiv="Cross-Origin-Opener-Policy" content="same-origin">
+    <meta http-equiv="Cross-Origin-Embedder-Policy" content="require-corp">
+    
+    <!-- Additional meta tags for security -->
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+    <meta http-equiv="Permissions-Policy" content="cross-origin-isolated=*">
+
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="icon" href="assets/danny.png">
+
+
+    <!-- Linera Import Map -->
+    <script type="importmap">
+        {
+            "imports": {
+              "@linera/client": "./@linera/client/linera_web.js"
+            }
+        }
+    </script>
+    
+    <!-- Cross-Origin Isolation Check Script -->
+    <script>
+        // Check SharedArrayBuffer support after page load
+        window.addEventListener('DOMContentLoaded', function() {
+            console.log('🔍 Checking SharedArrayBuffer support...');
+            
+            // Check crossOriginIsolated
+            if (typeof crossOriginIsolated === 'undefined') {
+                console.warn('⚠️ crossOriginIsolated not supported by this browser');
+            } else if (!crossOriginIsolated) {
+                console.error('❌ Cross-origin isolation not active!');
+                console.log('💡 Make sure server sends correct headers:');
+                console.log('   - Cross-Origin-Opener-Policy: same-origin');
+                console.log('   - Cross-Origin-Embedder-Policy: require-corp');
+            } else {
+                console.log('✅ Cross-origin isolation active');
+            }
+            
+            // Check SharedArrayBuffer
+            if (typeof SharedArrayBuffer === 'undefined') {
+                console.error('❌ SharedArrayBuffer not supported');
+                const statusElement = document.getElementById('walletStatus');
+                if (statusElement) {
+                    statusElement.textContent = '❌ Browser does not support SharedArrayBuffer. Try Chrome/Firefox.';
+                }
+            } else {
+                console.log('✅ SharedArrayBuffer supported');
+            }
+        });
+    </script>
+</head>
+<body>
+    <div class="container">
+        <h1>Danny VS Haters</h1>
+
+
+        <!-- Linera Wallet Info -->
+        <div id="walletInfo" class="wallet-info">
+            <div id="walletStatus">🔄 Connecting to Linera...</div>
+            <div id="chainInfo" style="display: none;">
+                <span>Chain: <span id="chainId">-</span></span>
+            </div>
+            <div id="leaderboardStatus" style="display: none; margin-top: 10px;">
+                <span>🏆 Leaderboard: <span id="leaderboardStatusText">Initializing...</span></span>
+            </div>
+        </div>
+
+        <!-- Notification element -->
+        <div id="notification" class="notification"></div>
+
+        <!-- Main Menu -->
+        <div id="mainMenu" class="screen active">
+            <div class="menu">
+                <button class="menu-btn" onclick="startGame()">Play</button>
+                <button class="menu-btn" onclick="showUpgrades().catch(console.error)">Upgrades</button>
+                <button class="menu-btn" onclick="showLeaderboard()">Leaderboard</button>
+            </div>
+        </div>
+
+        <!-- Game Screen -->
+        <div id="gameScreen" class="screen">
+            <div class="game-container">
+                <canvas id="gameCanvas"></canvas>
+                <div class="game-overlay">
+                    <div class="overlay-stats">
+                        <div class="overlay-stat coins">
+                            <span class="stat-icon">🪙</span>
+                            <span id="coins">0</span>
+                        </div>
+                        <div class="overlay-stat kills">
+                            <span class="stat-icon">⚔️</span>
+                            <span id="kills">0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <button class="back-btn" onclick="(async () => await endGame())()">Exit Game</button>
+        </div>
+
+        <!-- Upgrades Screen -->
+        <div id="upgradesScreen" class="screen">
+            <h2>Upgrades</h2>
+            <div class="upgrade-item">
+                <div>
+                    <h3>Sword Level 2</h3>
+                    <p>Damage: 2 | Cost: 500 coins</p>
+                </div>
+                <button class="upgrade-btn" id="upgrade2Btn" onclick="buyUpgrade(2)">Buy</button>
+            </div>
+            <div class="upgrade-item">
+                <div>
+                    <h3>Sword Level 3</h3>
+                    <p>Damage: 4 | Cost: 1500 coins</p>
+                </div>
+                <button class="upgrade-btn" id="upgrade3Btn" onclick="buyUpgrade(3)">Buy</button>
+            </div>
+            <div class="stat">Total coins: <span id="totalCoins">0</span></div>
+            <div class="reset-section">
+                <button class="reset-btn" onclick="resetProgress()">🔄 Reset Progress</button>
+                <p class="reset-warning">Warning: This will delete all coins and upgrades!</p>
+            </div>
+            <button class="back-btn" onclick="showMainMenu()">Back</button>
+        </div>
+
+        <!-- Leaderboard Screen -->
+        <div id="leaderboardScreen" class="screen">
+            <h2>Player Statistics</h2>
+            <div class="leaderboard-status">
+                <div id="lineraStatus">🔄 Checking Linera status...</div>
+            </div>
+            <div class="player-stats">
+                <div class="stat-item">
+                    <span class="stat-label">Player:</span>
+                    <span id="player-name">-</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Total coins:</span>
+                    <span id="player-best">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Chain:</span>
+                    <span id="player-chain">-</span>
+                </div>
+            </div>
+            <div class="leaderboard-controls">
+                <button class="control-btn" onclick="updatePlayerStats()">🔄 Refresh</button>
+                <button class="control-btn" onclick="changePlayerName()">✏️ Change Name</button>
+            </div>
+            <div class="info-message">
+                <p>💰 Coins are stored on your personal chain in Linera blockchain</p>
+                <p>🎮 Play to earn more coins!</p>
+            </div>
+            <button class="back-btn" onclick="showMainMenu()">Back</button>
+        </div>
+    </div>
+
+    <!-- Game Scripts -->
+    <script src="js/linera-sdk-integration.js" type="module"></script>
+    <script src="js/game.js?v=4"></script>
+</body>
+</html>

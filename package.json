@@ -1,0 +1,28 @@
+{
+  "name": "linera-app",
+  "version": "1.0.0",
+  "main": "test-player-name-integration.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "orchestrator": "node player-name-orchestrator.js",
+    "orchestrator-dev": "nodemon player-name-orchestrator.js"
+  },
+  "keywords": [
+    "linera",
+    "blockchain",
+    "orchestrator"
+  ],
+  "author": "",
+  "license": "ISC",
+  "description": "Linera Player Name App with Orchestrator",
+  "dependencies": {
+    "@linera/client": "^0.14.0",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "node-fetch": "^2.7.0",
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}
