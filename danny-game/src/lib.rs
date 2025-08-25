@@ -4,7 +4,7 @@
 /*! ABI of the Player Name Application */
 
 use async_graphql::{Request, Response};
-use linera_sdk::linera_base_types::{ContractAbi, ServiceAbi};
+use linera_sdk::linera_base_types::{ChainId, ContractAbi, ServiceAbi};
 use serde::{Deserialize, Serialize};
 
 pub struct PlayerNameAbi;
@@ -19,8 +19,35 @@ impl ServiceAbi for PlayerNameAbi {
     type QueryResponse = Response;
 }
 
+// Leaderboard structures
+#[derive(Debug, Clone, Serialize, Deserialize, async_graphql::SimpleObject)]
+pub struct ScoreEntry {
+    pub player_name: String,
+    pub score: u64,
+    pub chain_id: ChainId,
+    pub timestamp: u64,
+}
+
+// Application parameters for leaderboard configuration
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+pub struct ApplicationParameters {
+    pub leaderboard_chain_id: Option<ChainId>,
+}
+
+// Cross-chain leaderboard messages
+#[derive(Debug, Deserialize, Serialize)]
+pub enum LeaderboardMessage {
+    SubmitScoreToLeaderboard {
+        player_name: String,
+        score: u64,
+        player_chain_id: ChainId,
+        timestamp: u64,
+    },
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Operation {
+    // Existing game operations
     SetName(String),
     AddCoins(u64),
     SubtractCoins(u64),
@@ -35,4 +62,13 @@ pub enum Operation {
     RemoveMob { mob_id: String },
     RemoveAllMobs,
     GetAllMobs,
+    
+    // New leaderboard operations
+    SetupLeaderboard {
+        leaderboard_chain_id: ChainId,
+    },
+    SubmitScore {
+        score: u64,
+    },
+    ResetLeaderboard,
 }
