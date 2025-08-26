@@ -40,6 +40,34 @@ NGINX_CONF_DIR="/etc/nginx"
 SITES_AVAILABLE="$NGINX_CONF_DIR/sites-available"
 SITES_ENABLED="$NGINX_CONF_DIR/sites-enabled"
 SSL_DIR="/etc/letsencrypt/live/$DOMAIN"
+EMAIL="admin@$DOMAIN"
+
+# Функція перевірки DNS
+check_dns() {
+    local domain=$1
+    log "🔍 Перевірка DNS для $domain"
+    
+    # Отримуємо IP сервера
+    local server_ip=$(curl -s ifconfig.me 2>/dev/null || curl -s ipinfo.io/ip 2>/dev/null || echo "unknown")
+    
+    # Перевіряємо DNS запис
+    local dns_ip=$(dig +short $domain 2>/dev/null | tail -n1)
+    
+    if [ -n "$dns_ip" ] && [ "$dns_ip" != "" ]; then
+        if [ "$server_ip" = "$dns_ip" ]; then
+            log "✅ DNS налаштовано правильно ($domain -> $dns_ip)"
+            return 0
+        else
+            warn "⚠️ DNS не співпадає: сервер $server_ip, DNS $dns_ip"
+            warn "Переконайтеся, що A-запис для $domain вказує на $server_ip"
+            return 1
+        fi
+    else
+        warn "❌ DNS запис для $domain не знайдено"
+        warn "Створіть A-запис: $domain -> $server_ip"
+        return 1
+    fi
+}
 
 # Функція перевірки сервісу
 check_service() {
@@ -117,23 +145,119 @@ else
     exit 1
 fi
 
-# Отримання SSL сертифіката
-log "🔒 Налаштування SSL сертифіката"
-if [ ! -d "$SSL_DIR" ]; then
-    log "Отримання SSL сертифіката для $DOMAIN"
-    certbot certonly --nginx -d $DOMAIN -d www.$DOMAIN --non-interactive --agree-tos --email admin@$DOMAIN
+# Функція для налаштування SSL
+setup_ssl() {
+    log "🔒 Налаштування SSL сертифіката"
     
-    if [ $? -eq 0 ]; then
-        log "✅ SSL сертифікат отримано"
-    else
-        warn "❌ Не вдалося отримати SSL сертифікат. Продовжуємо без SSL..."
-        # Створюємо тимчасову HTTP конфігурацію
-        sed 's/listen 443 ssl http2;/listen 80;/g' $SITES_AVAILABLE/danny-game.conf > $SITES_AVAILABLE/danny-game-http.conf
-        sed -i '/ssl_/d' $SITES_AVAILABLE/danny-game-http.conf
-        ln -sf $SITES_AVAILABLE/danny-game-http.conf $SITES_ENABLED/danny-game.conf
+    # Перевірка DNS перед отриманням SSL
+    if ! check_dns $DOMAIN; then
+        warn "❌ DNS не налаштовано. SSL сертифікат не може бути отриманий."
+        warn "Налаштуйте DNS та запустіть скрипт знову."
+        return 1
     fi
+    
+    # Перевірка наявності сертифіката
+    if [ ! -d "$SSL_DIR" ]; then
+        log "Отримання SSL сертифіката для $DOMAIN"
+        
+        # Встановлення необхідних пакетів для DNS перевірки
+        if ! command -v dig &> /dev/null; then
+            log "Встановлення dnsutils..."
+            apt install -y dnsutils
+        fi
+        
+        # Спочатку налаштовуємо HTTP конфігурацію для верифікації домену
+        log "Створення тимчасової HTTP конфігурації для верифікації"
+        cp ./nginx/sites-available/danny-game-dev.conf $SITES_AVAILABLE/danny-game-temp.conf
+        
+        # Оновлюємо server_name в тимчасовій конфігурації
+        sed -i "s/localhost/$DOMAIN www.$DOMAIN/g" $SITES_AVAILABLE/danny-game-temp.conf
+        
+        # Додаємо location для acme-challenge
+        sed -i '/location \/ {/i\    # ACME challenge для Let\'s Encrypt\n    location /.well-known/acme-challenge/ {\n        root /var/www/danny-game;\n        try_files $uri =404;\n    }\n' $SITES_AVAILABLE/danny-game-temp.conf
+        
+        # Активуємо тимчасову конфігурацію
+        ln -sf $SITES_AVAILABLE/danny-game-temp.conf $SITES_ENABLED/danny-game.conf
+        
+        # Перевіряємо та перезапускаємо nginx
+        if nginx -t; then
+            systemctl reload nginx
+            log "✅ HTTP конфігурація активована для верифікації"
+        else
+            error "❌ Помилка в HTTP конфігурації"
+            return 1
+        fi
+        
+        # Створюємо директорію для ACME challenge
+        mkdir -p $APP_DIR/.well-known/acme-challenge
+        chown -R www-data:www-data $APP_DIR/.well-known
+        
+        # Отримуємо SSL сертифікат
+        log "Запит SSL сертифіката через Let's Encrypt..."
+        if certbot certonly --webroot -w $APP_DIR -d $DOMAIN -d www.$DOMAIN --non-interactive --agree-tos --email $EMAIL --no-eff-email; then
+            log "✅ SSL сертифікат успішно отримано"
+            
+            # Переключаємося на HTTPS конфігурацію
+            ln -sf $SITES_AVAILABLE/danny-game.conf $SITES_ENABLED/danny-game.conf
+            
+            # Перевіряємо конфігурацію з SSL
+            if nginx -t; then
+                systemctl reload nginx
+                log "✅ HTTPS конфігурація активована"
+                
+                # Перевіряємо доступність HTTPS
+                sleep 2
+                if curl -s -k https://$DOMAIN >/dev/null 2>&1; then
+                    log "✅ HTTPS сайт доступний"
+                    return 0
+                else
+                    warn "⚠️ HTTPS сайт може бути недоступний"
+                    return 0
+                fi
+            else
+                warn "❌ Помилка в HTTPS конфігурації, повертаємося до HTTP"
+                ln -sf $SITES_AVAILABLE/danny-game-temp.conf $SITES_ENABLED/danny-game.conf
+                systemctl reload nginx
+                return 1
+            fi
+        else
+            warn "❌ Не вдалося отримати SSL сертифікат"
+            log "Використовуємо HTTP конфігурацію"
+            return 1
+        fi
+    else
+        log "✅ SSL сертифікат вже існує"
+        
+        # Перевіряємо валідність існуючого сертифіката
+        if openssl x509 -checkend 86400 -noout -in "$SSL_DIR/cert.pem" >/dev/null 2>&1; then
+            log "✅ SSL сертифікат валідний"
+            return 0
+        else
+            warn "⚠️ SSL сертифікат скоро закінчиться або недійсний"
+            log "Спроба оновлення сертифіката..."
+            if certbot renew --quiet; then
+                log "✅ SSL сертифікат оновлено"
+                systemctl reload nginx
+                return 0
+            else
+                warn "❌ Не вдалося оновити SSL сертифікат"
+                return 1
+            fi
+        fi
+    fi
+}
+
+# Налаштування SSL з fallback на HTTP
+if setup_ssl; then
+    SSL_ENABLED=true
+    log "🔒 SSL успішно налаштовано"
 else
-    log "✅ SSL сертифікат вже існує"
+    SSL_ENABLED=false
+    warn "⚠️ Працюємо в HTTP режимі без SSL"
+    # Використовуємо development конфігурацію як fallback
+    cp ./nginx/sites-available/danny-game-dev.conf $SITES_AVAILABLE/danny-game-http.conf
+    sed -i "s/localhost/$DOMAIN www.$DOMAIN/g" $SITES_AVAILABLE/danny-game-http.conf
+    ln -sf $SITES_AVAILABLE/danny-game-http.conf $SITES_ENABLED/danny-game.conf
 fi
 
 # Налаштування автоматичного оновлення SSL
@@ -172,18 +296,38 @@ fi
 log "🎉 РОЗГОРТАННЯ NGINX ЗАВЕРШЕНО!"
 echo
 log "📋 Інформація про розгортання:"
-log "   🌐 Домен: https://$DOMAIN"
+if [ "$SSL_ENABLED" = true ]; then
+    log "   🌐 Домен: https://$DOMAIN"
+    log "   🔒 SSL: Увімкнено ($SSL_DIR)"
+    log "   ⚙️ Конфігурація: $SITES_AVAILABLE/danny-game.conf (HTTPS)"
+else
+    log "   🌐 Домен: http://$DOMAIN"
+    log "   🔒 SSL: Вимкнено (HTTP режим)"
+    log "   ⚙️ Конфігурація: $SITES_AVAILABLE/danny-game-http.conf (HTTP)"
+fi
 log "   📁 Директорія: $APP_DIR"
-log "   ⚙️ Конфігурація nginx: $SITES_AVAILABLE/danny-game.conf"
-log "   🔒 SSL: $SSL_DIR"
 echo
 log "🔧 Корисні команди:"
 log "   sudo danny-status.sh          # Перевірка статусу"
 log "   sudo systemctl restart nginx  # Перезапуск nginx"
 log "   sudo nginx -t                 # Перевірка конфігурації"
-log "   sudo certbot renew            # Оновлення SSL"
+if [ "$SSL_ENABLED" = true ]; then
+    log "   sudo certbot renew            # Оновлення SSL"
+    log "   sudo ./switch-nginx-mode.sh   # Переключення режимів"
+else
+    log "   sudo certbot certonly --webroot -w $APP_DIR -d $DOMAIN -d www.$DOMAIN  # Отримання SSL"
+    log "   sudo ./switch-nginx-mode.sh production  # Переключення на HTTPS"
+fi
 echo
 log "📊 Запуск перевірки статусу..."
-/usr/local/bin/danny-status.sh
+if [ -f "/usr/local/bin/danny-status.sh" ]; then
+    /usr/local/bin/danny-status.sh
+else
+    warn "Скрипт danny-status.sh ще не створено. Буде доступний після налаштування сервісів."
+fi
 
-log "✅ Розгортання завершено успішно!"
+if [ "$SSL_ENABLED" = true ]; then
+    log "✅ Розгортання завершено успішно з SSL!"
+else
+    warn "⚠️ Розгортання завершено в HTTP режимі. Для SSL виконайте команди вище."
+fi
