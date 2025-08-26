@@ -68,9 +68,7 @@
             <div id="chainInfo" style="display: none;">
                 <span>Chain: <span id="chainId">-</span></span>
             </div>
-            <div id="leaderboardStatus" style="display: none; margin-top: 10px;">
-                <span>🏆 Leaderboard: <span id="leaderboardStatusText">Initializing...</span></span>
-            </div>
+
         </div>
 
         <!-- Notification element -->
@@ -109,33 +107,30 @@
         <div id="upgradesScreen" class="screen">
             <h2>Upgrades</h2>
             <div class="upgrade-item">
+                <img src="assets/sword2.png" alt="Axe Level 2" class="upgrade-icon">
                 <div>
-                    <h3>Sword Level 2</h3>
+                    <h3>Axe Level 2</h3>
                     <p>Damage: 2 | Cost: 500 coins</p>
                 </div>
                 <button class="upgrade-btn" id="upgrade2Btn" onclick="buyUpgrade(2)">Buy</button>
             </div>
             <div class="upgrade-item">
+                <img src="assets/sword3.png" alt="Axe Level 3" class="upgrade-icon">
                 <div>
-                    <h3>Sword Level 3</h3>
+                    <h3>Axe Level 3</h3>
                     <p>Damage: 4 | Cost: 1500 coins</p>
                 </div>
                 <button class="upgrade-btn" id="upgrade3Btn" onclick="buyUpgrade(3)">Buy</button>
             </div>
             <div class="stat">Total coins: <span id="totalCoins">0</span></div>
-            <div class="reset-section">
-                <button class="reset-btn" onclick="resetProgress()">🔄 Reset Progress</button>
-                <p class="reset-warning">Warning: This will delete all coins and upgrades!</p>
-            </div>
+
             <button class="back-btn" onclick="showMainMenu()">Back</button>
         </div>
 
         <!-- Leaderboard Screen -->
         <div id="leaderboardScreen" class="screen">
             <h2>Player Statistics</h2>
-            <div class="leaderboard-status">
-                <div id="lineraStatus">🔄 Checking Linera status...</div>
-            </div>
+
             <div class="player-stats">
                 <div class="stat-item">
                     <span class="stat-label">Player:</span>
@@ -154,9 +149,30 @@
                 <button class="control-btn" onclick="updatePlayerStats()">🔄 Refresh</button>
                 <button class="control-btn" onclick="changePlayerName()">✏️ Change Name</button>
             </div>
+            
+            <!-- Linera Leaderboard Section -->
+            <div class="linera-leaderboard">
+                <h3>🏆 Linera Leaderboard</h3>
+                <div id="leaderboard-loading" style="display: none;">Loading leaderboard...</div>
+                <div id="leaderboard-error" style="display: none; color: red;"></div>
+                <div class="player-leaderboard-stats" id="player-leaderboard-stats" style="display: none;">
+                    <div class="stat-item">
+                        <span class="stat-label">Best Score:</span>
+                        <span id="player-best-score">-</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Rank:</span>
+                        <span id="player-rank">-</span>
+                    </div>
+                </div>
+                <div class="leaderboard-list" id="leaderboard-list" style="display: none;">
+                    <!-- Leaderboard entries will be populated here -->
+                </div>
+            </div>
+            
             <div class="info-message">
                 <p>💰 Coins are stored on your personal chain in Linera blockchain</p>
-                <p>🎮 Play to earn more coins!</p>
+                <p>🎮 Play to earn more coins and compete on the leaderboard!</p>
             </div>
             <button class="back-btn" onclick="showMainMenu()">Back</button>
         </div>

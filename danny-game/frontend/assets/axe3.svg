@@ -1,0 +1,33 @@
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <!-- Handle -->
+  <rect x="28" y="6" width="8" height="54" fill="#8B4513" stroke="#654321" stroke-width="1"/>
+  
+  <!-- Axe Head (Largest) -->
+  <path d="M16 10 L37 16 L37 40 L16 46 Z" fill="#C0C0C0" stroke="#808080" stroke-width="1"/>
+  <path d="M37 16 L50 10 L58 28 L50 46 L37 40 Z" fill="#A0A0A0" stroke="#707070" stroke-width="1"/>
+  
+  <!-- Blade Edge -->
+  <path d="M16 10 L10 16 L10 40 L16 46" fill="#E0E0E0" stroke="#B0B0B0" stroke-width="1"/>
+  
+  <!-- Enhanced Double Blade -->
+  <path d="M37 16 L50 10 L58 28 L50 46 L37 40" fill="#D0D0D0" stroke="#909090" stroke-width="1"/>
+  
+  <!-- Spikes -->
+  <path d="M37 20 L42 18 L37 24 Z" fill="#B0B0B0" stroke="#808080" stroke-width="1"/>
+  <path d="M37 32 L42 30 L37 36 Z" fill="#B0B0B0" stroke="#808080" stroke-width="1"/>
+  
+  <!-- Handle Grip -->
+  <rect x="27" y="50" width="10" height="3" fill="#654321"/>
+  <rect x="27" y="42" width="10" height="3" fill="#654321"/>
+  <rect x="27" y="34" width="10" height="3" fill="#654321"/>
+  <rect x="27" y="26" width="10" height="3" fill="#654321"/>
+  <rect x="27" y="18" width="10" height="3" fill="#654321"/>
+  
+  <!-- Metal Details -->
+  <circle cx="32" cy="28" r="3" fill="#FFD700" stroke="#FFA500" stroke-width="1"/>
+  <circle cx="32" cy="20" r="2" fill="#FF6B6B" stroke="#FF4444" stroke-width="1"/>
+  <circle cx="32" cy="36" r="2" fill="#FF6B6B" stroke="#FF4444" stroke-width="1"/>
+  
+  <!-- Enchantment Glow -->
+  <circle cx="32" cy="28" r="5" fill="none" stroke="#00FFFF" stroke-width="1" opacity="0.5"/>
+</svg>

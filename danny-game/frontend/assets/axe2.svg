@@ -1,0 +1,23 @@
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <!-- Handle -->
+  <rect x="29" y="8" width="6" height="52" fill="#8B4513" stroke="#654321" stroke-width="1"/>
+  
+  <!-- Axe Head (Larger) -->
+  <path d="M18 12 L36 18 L36 38 L18 44 Z" fill="#C0C0C0" stroke="#808080" stroke-width="1"/>
+  <path d="M36 18 L48 12 L54 28 L48 44 L36 38 Z" fill="#A0A0A0" stroke="#707070" stroke-width="1"/>
+  
+  <!-- Blade Edge -->
+  <path d="M18 12 L12 18 L12 38 L18 44" fill="#E0E0E0" stroke="#B0B0B0" stroke-width="1"/>
+  
+  <!-- Double Blade -->
+  <path d="M36 18 L48 12 L54 28 L48 44 L36 38" fill="#D0D0D0" stroke="#909090" stroke-width="1"/>
+  
+  <!-- Handle Grip -->
+  <rect x="28" y="48" width="8" height="3" fill="#654321"/>
+  <rect x="28" y="38" width="8" height="3" fill="#654321"/>
+  <rect x="28" y="28" width="8" height="3" fill="#654321"/>
+  <rect x="28" y="18" width="8" height="3" fill="#654321"/>
+  
+  <!-- Metal Details -->
+  <circle cx="32" cy="28" r="2" fill="#FFD700" stroke="#FFA500" stroke-width="1"/>
+</svg>

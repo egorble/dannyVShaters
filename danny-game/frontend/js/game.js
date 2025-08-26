@@ -525,6 +525,22 @@ function showScreen(screenName) {
         screen.classList.remove('active');
     });
     
+    // Hide leaderboard list when switching screens
+    const leaderboardList = document.getElementById('leaderboard-list');
+    if (leaderboardList && screenName !== 'leaderboard') {
+        leaderboardList.style.display = 'none';
+    }
+    
+    // Show/hide wallet info based on screen
+    const walletInfo = document.getElementById('walletInfo');
+    if (walletInfo) {
+        if (screenName === 'mainMenu') {
+            walletInfo.style.display = 'block';
+        } else {
+            walletInfo.style.display = 'none';
+        }
+    }
+    
     // Handle different screen naming conventions
     let screenId;
     if (screenName === 'mainMenu') {
@@ -559,10 +575,99 @@ async function showUpgrades() {
     document.getElementById('totalCoins').textContent = gameState.totalCoins;
 }
 
-function showLeaderboard() {
+async function showLeaderboard() {
     showScreen('leaderboard');
     updateLineraStatus();
     updatePlayerStats();
+    
+    // Load and display Linera leaderboard data
+    await loadLineraLeaderboard();
+}
+
+/**
+ * Load and display Linera leaderboard data
+ */
+async function loadLineraLeaderboard() {
+    try {
+        console.log('🏆 Loading Linera leaderboard data...');
+        
+        // Get leaderboard container
+        const leaderboardList = document.getElementById('leaderboard-list');
+        if (!leaderboardList) {
+            console.warn('⚠️ Leaderboard list element not found');
+            return;
+        }
+        
+        // Show loading state
+        leaderboardList.innerHTML = '<div class="loading">Loading leaderboard...</div>';
+        
+        if (!window.lineraSDK) {
+            leaderboardList.innerHTML = '<div class="error">Linera SDK not available</div>';
+            return;
+        }
+        
+        // Get top players
+        let topPlayers = [];
+        if (window.lineraSDK.getTopPlayers) {
+            topPlayers = await window.lineraSDK.getTopPlayers(100);
+            console.log('🔍 Retrieved top players:', topPlayers);
+            console.log('🔍 Top players length:', topPlayers ? topPlayers.length : 'null');
+            if (topPlayers && topPlayers.length > 0) {
+                console.log('🔍 First player data:', topPlayers[0]);
+            }
+        }
+        
+        // Build leaderboard HTML
+        let html = '';
+        
+        // Top players section
+        html += '<div class="top-players">';
+        html += '<h3>🥇 Top Players</h3>';
+        
+        console.log('🔍 Checking topPlayers for display:', topPlayers);
+        console.log('🔍 topPlayers && topPlayers.length > 0:', topPlayers && topPlayers.length > 0);
+        
+        if (topPlayers && topPlayers.length > 0) {
+            console.log('🔍 Building HTML for', topPlayers.length, 'players');
+            html += '<ol class="leaderboard-entries">';
+            topPlayers.forEach((player, index) => {
+                console.log(`🔍 Processing player ${index}:`, player);
+                const rank = index + 1;
+                const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `${rank}.`;
+                html += `<li class="leaderboard-entry rank-${rank}">`;
+                html += `<span class="rank">${medal}</span>`;
+                html += `<span class="player-name">${player.playerName || 'Anonymous'}</span>`;
+                html += `<span class="score">${player.score} kills</span>`;
+                html += '</li>';
+            });
+            html += '</ol>';
+        } else {
+            console.log('🔍 No players to display, showing no data message');
+            html += '<p class="no-data">No leaderboard data available yet</p>';
+        }
+        
+        html += '</div>';
+        
+        console.log('🔍 Generated HTML:', html);
+        
+        // Update the leaderboard display
+        leaderboardList.innerHTML = html;
+        
+        // Show the leaderboard list
+        leaderboardList.style.display = 'block';
+        
+        console.log('✅ Linera leaderboard data loaded successfully');
+        console.log('🔍 Leaderboard list display set to:', leaderboardList.style.display);
+        
+    } catch (error) {
+        console.error('❌ Error loading Linera leaderboard:', error);
+        
+        const leaderboardList = document.getElementById('leaderboard-list');
+        if (leaderboardList) {
+            leaderboardList.innerHTML = '<div class="error">Error loading leaderboard data</div>';
+            leaderboardList.style.display = 'block';
+        }
+    }
 }
 
 async function startGame() {
@@ -620,6 +725,18 @@ async function startGame() {
     mobs = [];
     drops = [];
     
+    // Initialize leaderboard if available
+    if (window.lineraSDK && window.lineraSDK.setupLeaderboard) {
+        try {
+            console.log('🏆 Initializing leaderboard for game session...');
+            await window.lineraSDK.setupLeaderboard();
+            console.log('✅ Leaderboard initialized successfully');
+        } catch (error) {
+            console.warn('⚠️ Failed to initialize leaderboard:', error);
+            // Continue with game even if leaderboard setup fails
+        }
+    }
+    
     updateUI();
     gameLoop();
 }
@@ -643,6 +760,26 @@ async function endGame() {
     // Save to local leaderboard (only if there are kills)
     if (gameState.kills > 0) {
         saveScore(gameState.kills);
+        
+        // Submit score to Linera leaderboard
+        if (window.lineraSDK && window.lineraSDK.submitScore) {
+            try {
+                console.log(`🏆 Submitting score to Linera leaderboard: ${gameState.kills} kills`);
+                const success = await window.lineraSDK.submitScore(gameState.kills);
+                if (success) {
+                    console.log('✅ Score successfully submitted to Linera leaderboard');
+                    showNotification(`Score ${gameState.kills} submitted to leaderboard!`, 'success');
+                } else {
+                    console.warn('⚠️ Failed to submit score to Linera leaderboard');
+                    showNotification('Failed to submit score to leaderboard', 'error');
+                }
+            } catch (error) {
+                console.error('❌ Error submitting score to Linera leaderboard:', error);
+                showNotification('Error submitting score to leaderboard', 'error');
+            }
+        } else {
+            console.warn('⚠️ Linera SDK submitScore function not available');
+        }
     }
     
     // Clean up UI elements
@@ -799,8 +936,8 @@ async function buyUpgrade(level) {
                     updateUpgradeButtons();
                     document.getElementById('totalCoins').textContent = gameState.totalCoins;
                     
-                    showNotification(`Sword level ${level} purchased!`, 'success');
-                    console.log(`✅ Sword level ${level} purchased via blockchain`);
+                    showNotification(`Axe level ${level} purchased!`, 'success');
+        console.log(`✅ Axe level ${level} purchased via blockchain`);
                 } else {
                     // Error subtracting through blockchain, fallback to local
                     console.warn('❌ Failed to subtract coins via blockchain, using local fallback');
@@ -813,7 +950,7 @@ async function buyUpgrade(level) {
                     updateUpgradeButtons();
                     document.getElementById('totalCoins').textContent = gameState.totalCoins;
                     
-                    showNotification(`Sword level ${level} purchased (locally)!`, 'success');
+                    showNotification(`Axe level ${level} purchased (locally)!`, 'success');
                 }
             } catch (error) {
                 console.error('❌ Error purchasing sword upgrade via blockchain:', error);
@@ -827,7 +964,7 @@ async function buyUpgrade(level) {
                 updateUpgradeButtons();
                 document.getElementById('totalCoins').textContent = gameState.totalCoins;
                 
-                showNotification(`Sword level ${level} purchased (locally)!`, 'success');
+                showNotification(`Axe level ${level} purchased (locally)!`, 'success');
             }
         } else {
             // SDK unavailable, using local subtraction
@@ -841,33 +978,12 @@ async function buyUpgrade(level) {
             updateUpgradeButtons();
             document.getElementById('totalCoins').textContent = gameState.totalCoins;
             
-            showNotification(`Sword level ${level} purchased!`, 'success');
+            showNotification(`Axe level ${level} purchased!`, 'success');
         }
     }
 }
 
-function resetProgress() {
-    // Confirm before reset
-    if (confirm('Are you sure? This will delete all your coins and upgrades!')) {
-        // Reset game state
-        gameState.totalCoins = 0;
-        gameState.swordLevel = 1;
-        
-        // Clear localStorage
-        localStorage.removeItem('totalCoins');
-        localStorage.removeItem('swordLevel');
-        localStorage.removeItem('leaderboard');
-        
-        // Update UI
-        updateUpgradeButtons();
-        document.getElementById('totalCoins').textContent = gameState.totalCoins;
-        
-        // Show notification
-        showNotification('Progress reset!', 'damage');
-        
-        console.log('Progress reset successfully');
-    }
-}
+
 
 // Leaderboard system
 async function saveScore(kills) {
@@ -1596,7 +1712,7 @@ function updateDrops() {
                     if (gameState.swordLevel < swordLevel) {
                         player.sword.tempSword = swordLevel;
                         player.sword.tempUses = 5;
-                        showNotification(`Sword level ${swordLevel}! (5 hits)`, 'default');
+                        showNotification(`Axe level ${swordLevel}! (5 hits)`, 'default');
                     } else {
                         // Give 1 coin instead if player already has this upgrade
                         if (window.lineraSDK && window.lineraSDK.addCoins) {

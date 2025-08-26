@@ -1,0 +1,16 @@
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <!-- Handle -->
+  <rect x="30" y="10" width="4" height="50" fill="#8B4513" stroke="#654321" stroke-width="1"/>
+  
+  <!-- Axe Head -->
+  <path d="M20 15 L35 20 L35 35 L20 40 Z" fill="#C0C0C0" stroke="#808080" stroke-width="1"/>
+  <path d="M35 20 L45 15 L50 25 L45 35 L35 35 Z" fill="#A0A0A0" stroke="#707070" stroke-width="1"/>
+  
+  <!-- Blade Edge -->
+  <path d="M20 15 L15 20 L15 35 L20 40" fill="#E0E0E0" stroke="#B0B0B0" stroke-width="1"/>
+  
+  <!-- Handle Grip -->
+  <rect x="29" y="45" width="6" height="3" fill="#654321"/>
+  <rect x="29" y="35" width="6" height="3" fill="#654321"/>
+  <rect x="29" y="25" width="6" height="3" fill="#654321"/>
+</svg>

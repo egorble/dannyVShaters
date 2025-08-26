@@ -7,7 +7,7 @@
 
 // Configuration
 const ORCHESTRATOR_URL = 'http://localhost:3001';
-const MODULE_ID = 'b7f6d8e640277ef95ffac2e940f79ec0da8a1a56921ce46c7a73dd8c95765bec1ce514a2c21090f515ee2a9ef4e08ddd898c442e5078e17e4a8fe690e6eba75600';
+const LEADERBOARD_CHAIN_ID = '83990e573e43c72806fe93036de3418b9d3e57108e1cf4dabb6b5893b3f1a3b2';
 
 // Global state
 let userChainId = null;
@@ -87,27 +87,23 @@ async function initializeLineraSDK() {
             // Save chain ID in localStorage
             localStorage.setItem('lineraChainId', userChainId);
             
-            // Add application to chain
-            updateStatus('🔄 Adding application to chain...');
-            const appResponse = await fetch(`${ORCHESTRATOR_URL}/create-application`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    chainId: userChainId,
-                    bytecodeId: MODULE_ID
-                })
+            // Get application ID from orchestrator
+            updateStatus('🔄 Getting application ID...');
+            const appResponse = await fetch(`${ORCHESTRATOR_URL}/application-id`, {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' }
             });
             
             if (!appResponse.ok) {
-                throw new Error('Failed to add application to chain');
+                throw new Error('Failed to get application ID');
             }
             
             const appData = await appResponse.json();
             applicationId = appData.applicationId;
-            console.log('✅ Application added:', applicationId);
+            console.log('✅ Application ID retrieved:', applicationId);
             
             // Log GraphQL endpoint URL
-            const graphqlUrl = `http://localhost:8081/chains/${userChainId}/applications/${applicationId}`;
+            const graphqlUrl = `http://localhost:8080/chains/${userChainId}/applications/${applicationId}`;
             console.log('🔗 GraphQL endpoint:', graphqlUrl);
             
             // Save application ID in localStorage
@@ -213,7 +209,7 @@ async function fetchPlayerStats() {
             
             // Get health
             try {
-                const healthResponse = await fetch(`${ORCHESTRATOR_URL}/get-health/${userChainId}/${applicationId}`);
+                const healthResponse = await fetch(`${ORCHESTRATOR_URL}/get-health/${userChainId}`);
                 if (healthResponse.ok) {
                     const healthData = await healthResponse.json();
                     if (healthData.success) {
@@ -226,7 +222,7 @@ async function fetchPlayerStats() {
             
             // Get coins
             try {
-                const coinsResponse = await fetch(`${ORCHESTRATOR_URL}/get-coin-balance/${userChainId}/${applicationId}`);
+                const coinsResponse = await fetch(`${ORCHESTRATOR_URL}/get-coin-balance/${userChainId}`);
                 if (coinsResponse.ok) {
                     const coinsData = await coinsResponse.json();
                     if (coinsData.success) {
@@ -566,6 +562,191 @@ async function subtractHealth(amount) {
 }
 
 /**
+ * Setup leaderboard through orchestrator
+ */
+async function setupLeaderboard() {
+    try {
+        console.log('🏆 ==========================================');
+        console.log('🏆 SETTING UP LEADERBOARD');
+        console.log('🏆 ==========================================');
+        
+        if (!isInitialized) {
+            console.warn('❌ SDK not initialized, cannot setup leaderboard');
+            return false;
+        }
+
+        console.log('🏆 Setting up leaderboard...');
+        updateStatus('🔄 Setting up leaderboard...');
+
+        const response = await fetch(`${ORCHESTRATOR_URL}/setup-leaderboard`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                chainId: userChainId,
+                leaderboardChainId: LEADERBOARD_CHAIN_ID
+            })
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            console.log('✅ Leaderboard setup successfully via orchestrator');
+            showNotification('Leaderboard setup!', 'success');
+            updateStatus('✅ Leaderboard ready!');
+            return true;
+        } else {
+            throw new Error('Failed to setup leaderboard');
+        }
+        
+    } catch (error) {
+        console.log('❌ ==========================================');
+        console.log('❌ FAILED TO SETUP LEADERBOARD!');
+        console.log('❌ ==========================================');
+        console.error('❌ Error details:', error);
+        
+        showNotification('Error setting up leaderboard', 'error');
+        updateStatus('❌ Error setting up leaderboard');
+        return false;
+    }
+}
+
+/**
+ * Submit score to leaderboard through orchestrator
+ */
+async function submitScore(score) {
+    try {
+        console.log('🏆 ==========================================');
+        console.log('🏆 SUBMITTING SCORE TO LEADERBOARD');
+        console.log('🏆 ==========================================');
+        
+        if (!isInitialized) {
+            console.warn('❌ SDK not initialized, cannot submit score');
+            return false;
+        }
+
+        if (score === undefined || score < 0) {
+            console.warn('❌ Invalid score:', score);
+            return false;
+        }
+
+        console.log(`🏆 Score to submit: ${score}`);
+        updateStatus(`🔄 Submitting score: ${score}...`);
+
+        const response = await fetch(`${ORCHESTRATOR_URL}/submit-score`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                chainId: userChainId,
+                score: score
+            })
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            console.log('✅ Score submitted successfully via orchestrator');
+            showNotification(`Score ${score} submitted!`, 'success');
+            updateStatus('✅ Score submitted!');
+            return true;
+        } else {
+            throw new Error('Failed to submit score');
+        }
+        
+    } catch (error) {
+        console.log('❌ ==========================================');
+        console.log('❌ FAILED TO SUBMIT SCORE!');
+        console.log('❌ ==========================================');
+        console.error('❌ Error details:', error);
+        
+        showNotification('Error submitting score', 'error');
+        updateStatus('❌ Error submitting score');
+        return false;
+    }
+}
+
+/**
+ * Get global leaderboard through orchestrator
+ */
+async function getGlobalLeaderboard() {
+    try {
+        if (!isInitialized) {
+            console.warn('❌ SDK not initialized, cannot get leaderboard');
+            return [];
+        }
+
+        console.log('🔍 Getting global leaderboard...');
+
+        const response = await fetch(`${ORCHESTRATOR_URL}/global-leaderboard/${LEADERBOARD_CHAIN_ID}`, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            console.log('✅ Global leaderboard retrieved:', result.globalLeaderboard);
+            return result.globalLeaderboard || [];
+        } else {
+            console.warn('No leaderboard data found');
+            return [];
+        }
+        
+    } catch (error) {
+        console.error('❌ Error getting global leaderboard:', error);
+        return [];
+    }
+}
+
+/**
+ * Get top players through orchestrator
+ */
+async function getTopPlayers(limit = 100) {
+    try {
+        if (!isInitialized) {
+            console.warn('❌ SDK not initialized, cannot get top players');
+            return [];
+        }
+
+        console.log(`🔍 Getting top ${limit} players...`);
+
+        const response = await fetch(`${ORCHESTRATOR_URL}/top-players/${LEADERBOARD_CHAIN_ID}/${limit}`, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            console.log('✅ Top players retrieved:', result.topPlayers);
+            return result.topPlayers || [];
+        } else {
+            console.warn('No top players data found');
+            return [];
+        }
+        
+    } catch (error) {
+        console.error('❌ Error getting top players:', error);
+        return [];
+    }
+}
+
+/**
  * Request player name at startup
  */
 async function promptForPlayerName() {
@@ -616,16 +797,7 @@ function updatePlayerStatsDisplay() {
     // Update Linera status
     const lineraStatusElement = document.getElementById('lineraStatus');
     if (lineraStatusElement) {
-        if (isInitialized && playerStats.playerName) {
-            lineraStatusElement.innerHTML = `⛓️ Connected: ${playerStats.playerName}`;
-            lineraStatusElement.style.color = '#a0ffa0';
-        } else if (isInitialized) {
-            lineraStatusElement.innerHTML = '🔄 Connected to Linera';
-            lineraStatusElement.style.color = '#ffff80';
-        } else {
-            lineraStatusElement.innerHTML = '❌ Not connected';
-            lineraStatusElement.style.color = '#ffa0a0';
-        }
+        lineraStatusElement.style.display = 'none';
     }
 }
 
@@ -910,7 +1082,12 @@ window.lineraSDK = {
     removeMob: removeMob,
     getMobHealth: getMobHealth,
     getAllMobs: getAllMobs,
-    removeAllMobs: removeAllMobs
+    removeAllMobs: removeAllMobs,
+    // Leaderboard functions
+    setupLeaderboard: setupLeaderboard,
+    submitScore: submitScore,
+    getGlobalLeaderboard: getGlobalLeaderboard,
+    getTopPlayers: getTopPlayers
 };
 
 // Fallback functions for local mode

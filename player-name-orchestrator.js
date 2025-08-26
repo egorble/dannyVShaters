@@ -10,14 +10,15 @@ const cors = require('cors');
 const app = express();
 const port = 3001;
 const FAUCET_URL = "https://faucet.testnet-babbage.linera.net"; // Зовнішній testnet фаусет
-const NODE_SERVICE_URL = "http://localhost:8081"; // Node service для GraphQL
+const NODE_SERVICE_URL = "http://localhost:8080"; // Node service для GraphQL
 
 app.use(express.json());
 app.use(cors()); // Дозволити CORS для веб-фронтенду
 app.use(express.static('.')); // Статичні файли
 
 // Глобальні змінні для зберігання стану
-let publishedBytecodeId = "d92b347985c048a252956edec32acfa7ba8e759febf81d5be684b5daba9d53fa2d684380da1639a2b52d11f0bc8eb28d56c4c2a9d20a054cd9e29cb44a119cb500";
+let applicationId = "a3f653760949e55fe7cef39cd6975bd8c02d5037a42ec91b22379ca374816ad3"; // Єдиний app ID для всіх чейнів
+let leaderboardChainId = "83990e573e43c72806fe93036de3418b9d3e57108e1cf4dabb6b5893b3f1a3b2"; // Leaderboard chain ID
 let mainChainId = null;
 let chains = []; // Масив для зберігання створених ланцюгів
 
@@ -68,12 +69,12 @@ app.get('/', (req, res) => {
 
 // Видалення всіх мобів (паралельна обробка)
 app.post('/remove-all-mobs', (req, res) => {
-    const { chainId, applicationId } = req.body;
+    const { chainId } = req.body;
     
-    if (!chainId || !applicationId) {
+    if (!chainId) {
         return res.status(400).json({
             success: false,
-            message: 'Chain ID та Application ID обов\'язкові'
+            message: 'Chain ID обов\'язковий'
         });
     }
     
@@ -96,18 +97,20 @@ app.post('/remove-all-mobs', (req, res) => {
     res.json({
         success: true,
         message: 'Запит на видалення всіх мобів надіслано (async)',
+        chainId: chainId,
+        applicationId: applicationId,
         note: 'Операція виконується в фоновому режимі'
     });
 });
 
 // Додавання здоров'я гравця (паралельна обробка)
 app.post('/add-health', (req, res) => {
-    const { chainId, applicationId, amount } = req.body;
+    const { chainId, amount } = req.body;
     
-    if (!chainId || !applicationId || amount === undefined) {
+    if (!chainId || amount === undefined) {
         return res.status(400).json({
             success: false,
-            message: 'Chain ID, Application ID та amount обов\'язкові'
+            message: 'Chain ID та amount обов\'язкові'
         });
     }
     
@@ -144,12 +147,12 @@ app.post('/add-health', (req, res) => {
 
 // Віднімання здоров'я гравця (паралельна обробка)
 app.post('/subtract-health', (req, res) => {
-    const { chainId, applicationId, amount } = req.body;
+    const { chainId, amount } = req.body;
     
-    if (!chainId || !applicationId || amount === undefined) {
+    if (!chainId || amount === undefined) {
         return res.status(400).json({
             success: false,
-            message: 'Chain ID, Application ID та amount обов\'язкові'
+            message: 'Chain ID та amount обов\'язкові'
         });
     }
     
@@ -185,21 +188,21 @@ app.post('/subtract-health', (req, res) => {
 });
 
 // Отримання поточного здоров'я гравця
-app.get('/get-health/:chainId/:applicationId', async (req, res) => {
+app.get('/get-health/:chainId', async (req, res) => {
     try {
-        const { chainId, applicationId } = req.params;
+        const { chainId } = req.params;
         
-        if (!chainId || !applicationId) {
+        if (!chainId) {
             return res.status(400).json({
                 success: false,
-                message: 'Chain ID та Application ID обов\'язкові'
+                message: 'Chain ID обов\'язковий'
             });
         }
         
         console.log(`💚 Отримання здоров\'я для додатку ${applicationId}...`);
         
         // URL для GraphQL запиту до конкретного додатку
-        const appUrl = `http://localhost:8081/chains/${chainId}/applications/${applicationId}`;
+        const appUrl = `http://localhost:8080/chains/${chainId}/applications/${applicationId}`;
         
         const query = {
             query: `query {
@@ -264,42 +267,14 @@ app.get('/status', (req, res) => {
         orchestrator: 'running',
         faucetUrl: FAUCET_URL,
         nodeServiceUrl: NODE_SERVICE_URL,
-        publishedBytecodeId: publishedBytecodeId,
+        applicationId: applicationId,
+        leaderboardChainId: leaderboardChainId,
         mainChainId: mainChainId,
         timestamp: new Date().toISOString()
     });
 });
 
-// Встановлення Bytecode ID вручну
-app.post('/set-bytecode-id', async (req, res) => {
-    try {
-        const { bytecodeId } = req.body;
-        
-        if (!bytecodeId) {
-            return res.status(400).json({
-                success: false,
-                message: 'Bytecode ID обов\'язковий'
-            });
-        }
-        
-        publishedBytecodeId = bytecodeId;
-        console.log(`✅ Bytecode ID встановлено: ${publishedBytecodeId}`);
-        
-        res.json({
-            success: true,
-            message: 'Bytecode ID успішно встановлено',
-            bytecodeId: publishedBytecodeId
-        });
-        
-    } catch (error) {
-        console.error('❌ Помилка встановлення Bytecode ID:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Помилка встановлення Bytecode ID',
-            error: error.message
-        });
-    }
-});
+
 
 // Створення нового ланцюга через openChain мутацію
 app.post('/create-chain', async (req, res) => {
@@ -307,8 +282,8 @@ app.post('/create-chain', async (req, res) => {
 
     try {
         // Дані для створення ланцюга
-        const chainId = "8e2dc984a00a8e778f6666c2751a48df99dee050cb310f4223cd5a4c78968d73";
-        const ownerAddress = "0x4b34a1814cba5d1273c4114b2cd86ee51b5e73574899612e228da33adba3c0ca";
+        const chainId = "83990e573e43c72806fe93036de3418b9d3e57108e1cf4dabb6b5893b3f1a3b2";
+        const ownerAddress = "0x546c8c3f1c1df4327ea0a607a2f445bcc3e37e894346ec8a266f7e3567856686";
         const balance = "1";
 
         console.log(`Створення ланцюга з ID: ${chainId}`);
@@ -381,84 +356,46 @@ app.post('/create-chain', async (req, res) => {
     }
 });
 
-// Створення додатку на ланцюзі
-app.post('/create-application', async (req, res) => {
+// Отримання поточного Application ID
+app.get('/application-id', (req, res) => {
+    res.json({
+        applicationId: applicationId
+    });
+});
+
+// Отримання Leaderboard Chain ID
+app.get('/leaderboard-chain-id', (req, res) => {
+    res.json({
+        leaderboardChainId: leaderboardChainId
+    });
+});
+
+// Встановлення Application ID вручну
+app.post('/set-application-id', async (req, res) => {
     try {
-        const { chainId, bytecodeId } = req.body;
+        const { appId } = req.body;
         
-        if (!chainId) {
+        if (!appId) {
             return res.status(400).json({
                 success: false,
-                message: 'Chain ID обов\'язковий'
+                message: 'Application ID обов\'язковий'
             });
         }
         
-        const targetBytecodeId = bytecodeId || publishedBytecodeId;
-        if (!targetBytecodeId) {
-            return res.status(400).json({
-                success: false,
-                message: 'Bytecode ID не знайдено. Спочатку опублікуйте додаток.'
-            });
-        }
-        
-        console.log(`📱 Створення додатку на ланцюзі ${chainId}...`);
-        
-        // GraphQL мутація для створення додатку
-        const mutation = {
-            query: `mutation {
-                createApplication(
-                    chainId: "${chainId}",
-                    moduleId: "${targetBytecodeId}",
-                    parameters: "null",
-                    instantiationArgument: \"\\\"\\\"\",
-                    requiredApplicationIds: []
-                )
-            }`
-        };
-        
-        console.log('🔍 GraphQL запит для створення додатку:');
-        console.log('URL:', NODE_SERVICE_URL);
-        console.log('Mutation:', JSON.stringify(mutation, null, 2));
-        console.log('Raw query string:', mutation.query);
-        
-        const response = await fetch(NODE_SERVICE_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(mutation)
-        });
-        
-        const responseText = await response.text();
-        console.log('Create app response:', responseText);
-        
-        const result = JSON.parse(responseText);
-        
-        console.log('📥 Відповідь від GraphQL сервера:');
-        console.log('Status:', response.status);
-        console.log('Response:', JSON.stringify(result, null, 2));
-        
-        if (result.errors) {
-            console.error('❌ GraphQL помилки:', result.errors);
-            throw new Error(`GraphQL error: ${JSON.stringify(result.errors)}`);
-        }
-        
-        const applicationId = result.data.createApplication;
-        console.log(`✅ Додаток створено: ${applicationId}`);
+        applicationId = appId;
+        console.log(`✅ Application ID встановлено: ${applicationId}`);
         
         res.json({
             success: true,
-            message: 'Додаток успішно створено',
-            applicationId: applicationId,
-            chainId: chainId,
-            bytecodeId: targetBytecodeId
+            message: 'Application ID успішно встановлено',
+            applicationId: applicationId
         });
         
     } catch (error) {
-        console.error('❌ Помилка створення додатку:', error);
+        console.error('❌ Помилка встановлення Application ID:', error);
         res.status(500).json({
             success: false,
-            message: 'Помилка створення додатку',
+            message: 'Помилка встановлення Application ID',
             error: error.message
         });
     }
@@ -507,7 +444,7 @@ app.get('/get-player-name/:chainId/:applicationId', async (req, res) => {
         console.log(`🔍 Отримання імені для додатку ${applicationId}...`);
         
         // URL для GraphQL запиту до конкретного додатку
-        const appUrl = `http://localhost:8081/chains/${chainId}/applications/${applicationId}`;
+        const appUrl = `http://localhost:8080/chains/${chainId}/applications/${applicationId}`;
         
         const query = {
             query: `query {
@@ -560,13 +497,7 @@ app.get('/get-player-name/:chainId/:applicationId', async (req, res) => {
     }
 });
 
-// Отримання опублікованого Bytecode ID
-app.get('/bytecode-id', (req, res) => {
-    res.json({
-        bytecodeId: publishedBytecodeId,
-        published: !!publishedBytecodeId
-    });
-});
+
 
 // Перевірка існуючих ланцюгів
 app.get('/check-chains', async (req, res) => {
@@ -621,12 +552,12 @@ app.get('/check-chains', async (req, res) => {
 
 // Додавання монет гравцю (паралельна обробка)
 app.post('/add-coins', (req, res) => {
-    const { chainId, applicationId, amount } = req.body;
+    const { chainId, amount } = req.body;
     
-    if (!chainId || !applicationId || !amount) {
+    if (!chainId || !amount) {
         return res.status(400).json({
             success: false,
-            message: 'Chain ID, Application ID та amount обов\'язкові'
+            message: 'Chain ID та amount обов\'язкові'
         });
     }
     
@@ -664,12 +595,12 @@ app.post('/add-coins', (req, res) => {
 
 // Віднімання монет гравця (паралельна обробка)
 app.post('/subtract-coins', (req, res) => {
-    const { chainId, applicationId, amount } = req.body;
+    const { chainId, amount } = req.body;
     
-    if (!chainId || !applicationId || !amount) {
+    if (!chainId || !amount) {
         return res.status(400).json({
             success: false,
-            message: 'Chain ID, Application ID та amount обов\'язкові'
+            message: 'Chain ID та amount обов\'язкові'
         });
     }
     
@@ -706,14 +637,14 @@ app.post('/subtract-coins', (req, res) => {
 });
 
 // Отримання балансу монет гравця
-app.get('/get-coin-balance/:chainId/:applicationId', async (req, res) => {
+app.get('/get-coin-balance/:chainId', async (req, res) => {
     try {
-        const { chainId, applicationId } = req.params;
+        const { chainId } = req.params;
         
         console.log(`🔍 Отримання балансу монет для додатку ${applicationId}...`);
         
         // URL для GraphQL запиту до конкретного додатку
-        const appUrl = `http://localhost:8081/chains/${chainId}/applications/${applicationId}`;
+        const appUrl = `http://localhost:8080/chains/${chainId}/applications/${applicationId}`;
         
         const query = {
             query: `query {
@@ -769,12 +700,12 @@ app.get('/get-coin-balance/:chainId/:applicationId', async (req, res) => {
 // Створення моба
 // Створення моба (паралельна обробка)
 app.post('/create-mob', (req, res) => {
-    const { chainId, applicationId, mobId, health } = req.body;
+    const { chainId, mobId, health } = req.body;
     
-    if (!chainId || !applicationId || !mobId || health === undefined) {
+    if (!chainId || !mobId || health === undefined) {
         return res.status(400).json({
             success: false,
-            message: 'Chain ID, Application ID, Mob ID та health обов\'язкові'
+            message: 'Chain ID, Mob ID та health обов\'язкові'
         });
     }
 
@@ -812,12 +743,12 @@ app.post('/create-mob', (req, res) => {
 
 // Завдання шкоди мобу (паралельна обробка)
 app.post('/damage-mob', (req, res) => {
-    const { chainId, applicationId, mobId, damage } = req.body;
+    const { chainId, mobId, damage } = req.body;
     
-    if (!chainId || !applicationId || !mobId || damage === undefined) {
+    if (!chainId || !mobId || damage === undefined) {
         return res.status(400).json({
             success: false,
-            message: 'Chain ID, Application ID, Mob ID та damage обов\'язкові'
+            message: 'Chain ID, Mob ID та damage обов\'язкові'
         });
     }
 
@@ -848,12 +779,12 @@ app.post('/damage-mob', (req, res) => {
 
 // Видалення моба (паралельна обробка)
 app.post('/remove-mob', (req, res) => {
-    const { chainId, applicationId, mobId } = req.body;
+    const { chainId, mobId } = req.body;
     
-    if (!chainId || !applicationId || !mobId) {
+    if (!chainId || !mobId) {
         return res.status(400).json({
             success: false,
-            message: 'Chain ID, Application ID та Mob ID обов\'язкові'
+            message: 'Chain ID та Mob ID обов\'язкові'
         });
     }
 
@@ -882,9 +813,16 @@ app.post('/remove-mob', (req, res) => {
 });
 
 // Отримання здоров'я моба
-app.get('/get-mob-health/:chainId/:applicationId/:mobId', async (req, res) => {
+app.get('/get-mob-health/:chainId/:mobId', async (req, res) => {
     try {
-        const { chainId, applicationId, mobId } = req.params;
+        const { chainId, mobId } = req.params;
+        
+        if (!chainId || !mobId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Chain ID та Mob ID обов\'язкові'
+            });
+        }
         
         console.log(`🔍 Отримання здоров\'я моба ${mobId}...`);
         
@@ -894,7 +832,7 @@ app.get('/get-mob-health/:chainId/:applicationId/:mobId', async (req, res) => {
             }
         `;
         
-        const response = await fetch(`${NODE_SERVICE_URL}/chains/${chainId}/applications/${applicationId}`, {
+        const response = await fetch(`${NODE_SERVICE_URL}/chains/${leaderboardChainId}/applications/${applicationId}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -933,9 +871,16 @@ app.get('/get-mob-health/:chainId/:applicationId/:mobId', async (req, res) => {
 });
 
 // Отримання всіх мобів
-app.get('/get-all-mobs/:chainId/:applicationId', async (req, res) => {
+app.get('/get-all-mobs/:chainId', async (req, res) => {
     try {
-        const { chainId, applicationId } = req.params;
+        const { chainId } = req.params;
+        
+        if (!chainId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Chain ID обов\'язковий'
+            });
+        }
         
         console.log(`🔍 Отримання всіх мобів...`);
         
@@ -951,7 +896,7 @@ app.get('/get-all-mobs/:chainId/:applicationId', async (req, res) => {
             }
         `;
         
-        const response = await fetch(`${NODE_SERVICE_URL}/chains/${chainId}/applications/${applicationId}`, {
+        const response = await fetch(`${NODE_SERVICE_URL}/chains/${leaderboardChainId}/applications/${applicationId}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -989,15 +934,362 @@ app.get('/get-all-mobs/:chainId/:applicationId', async (req, res) => {
     }
 });
 
+// ===== LEADERBOARD ENDPOINTS =====
+
+// Налаштування лідерборду
+app.post('/setup-leaderboard', (req, res) => {
+    const { chainId, leaderboardChainId } = req.body;
+    
+    if (!chainId || !leaderboardChainId) {
+        return res.status(400).json({
+            success: false,
+            message: 'Chain ID та Leaderboard Chain ID обов\'язкові'
+        });
+    }
+
+    console.log(`🏆 Налаштування лідерборду для додатку ${applicationId} (async)...`);
+    
+    const mutation = `mutation {
+        setupLeaderboard(leaderboardChainId: "${leaderboardChainId}")
+    }`;
+    
+    // Виконуємо запит асинхронно без очікування
+    executeGraphQLAsync(
+        `${NODE_SERVICE_URL}/chains/${chainId}/applications/${applicationId}`,
+        mutation,
+        'setupLeaderboard'
+    );
+    
+    // Відразу повертаємо успішну відповідь
+    res.json({
+        success: true,
+        message: 'Запит на налаштування лідерборду надіслано (async)',
+        chainId: chainId,
+        leaderboardChainId: leaderboardChainId,
+        applicationId: applicationId,
+        note: 'Операція виконується в фоновому режимі'
+    });
+});
+
+// Подання результату
+app.post('/submit-score', (req, res) => {
+    const { chainId, score } = req.body;
+    
+    if (!chainId || score === undefined) {
+        return res.status(400).json({
+            success: false,
+            message: 'Chain ID та score обов\'язкові'
+        });
+    }
+
+    console.log(`🏆 Подання результату ${score} для додатку ${applicationId} (async)...`);
+    
+    const mutation = `mutation {
+        submitScore(score: ${score})
+    }`;
+    
+    // Виконуємо запит асинхронно без очікування
+    executeGraphQLAsync(
+        `${NODE_SERVICE_URL}/chains/${chainId}/applications/${applicationId}`,
+        mutation,
+        `submitScore(${score})`
+    );
+    
+    // Відразу повертаємо успішну відповідь
+    res.json({
+        success: true,
+        message: `Запит на подання результату ${score} надіслано (async)`,
+        score: score,
+        chainId: chainId,
+        applicationId: applicationId,
+        note: 'Операція виконується в фоновому режимі'
+    });
+});
+
+// Скидання лідерборду (тільки для leaderboard chain)
+app.post('/reset-leaderboard', (req, res) => {
+    const { chainId } = req.body;
+    
+    if (!chainId) {
+        return res.status(400).json({
+            success: false,
+            message: 'Chain ID обов\'язковий'
+        });
+    }
+
+    console.log(`🏆 Скидання лідерборду для додатку ${applicationId} (async)...`);
+    
+    const mutation = `mutation {
+        resetLeaderboard
+    }`;
+    
+    // Виконуємо запит асинхронно без очікування
+    executeGraphQLAsync(
+        `${NODE_SERVICE_URL}/chains/${chainId}/applications/${applicationId}`,
+        mutation,
+        'resetLeaderboard'
+    );
+    
+    // Відразу повертаємо успішну відповідь
+    res.json({
+        success: true,
+        message: 'Запит на скидання лідерборду надіслано (async)',
+        chainId: chainId,
+        applicationId: applicationId,
+        note: 'Операція виконується в фоновому режимі'
+    });
+});
+
+// Отримання особистого найкращого результату
+// Отримання глобального лідерборду
+app.get('/global-leaderboard/:chainId', async (req, res) => {
+    try {
+        const { chainId } = req.params;
+        
+        if (!chainId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Chain ID обов\'язковий'
+            });
+        }
+
+        console.log(`🔍 Отримання глобального лідерборду для додатку ${applicationId}...`);
+        
+        const query = `
+            query {
+                globalLeaderboard {
+                    playerName
+                    score
+                    chainId
+                    timestamp
+                }
+            }
+        `;
+        
+        const response = await fetch(`${NODE_SERVICE_URL}/chains/${leaderboardChainId}/applications/${applicationId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ query })
+        });
+
+        const result = await response.json();
+
+        if (result.errors) {
+            console.error('❌ GraphQL помилки:', result.errors);
+            return res.status(500).json({
+                success: false,
+                message: 'Помилка при отриманні глобального лідерборду',
+                errors: result.errors
+            });
+        }
+
+        res.json({
+            success: true,
+            globalLeaderboard: result.data.globalLeaderboard,
+            chainId: leaderboardChainId,
+            applicationId: applicationId
+        });
+        
+    } catch (error) {
+        console.error('❌ Помилка при отриманні глобального лідерборду:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Внутрішня помилка сервера',
+            error: error.message
+        });
+    }
+});
+
+// Отримання топ гравців
+app.get('/top-players/:chainId/:limit?', async (req, res) => {
+    try {
+        const { chainId, limit = 10 } = req.params;
+        
+        if (!chainId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Chain ID обов\'язковий'
+            });
+        }
+
+        const limitNum = Math.min(parseInt(limit) || 10, 100); // Максимум 100
+
+        console.log(`🔍 Отримання топ ${limitNum} гравців для додатку ${applicationId}...`);
+        
+        const query = `
+            query {
+                topPlayers(limit: ${limitNum}) {
+                    playerName
+                    score
+                    chainId
+                    timestamp
+                }
+            }
+        `;
+        
+        const response = await fetch(`${NODE_SERVICE_URL}/chains/${leaderboardChainId}/applications/${applicationId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ query })
+        });
+
+        const result = await response.json();
+
+        if (result.errors) {
+            console.error('❌ GraphQL помилки:', result.errors);
+            return res.status(500).json({
+                success: false,
+                message: 'Помилка при отриманні топ гравців',
+                errors: result.errors
+            });
+        }
+
+        res.json({
+            success: true,
+            topPlayers: result.data.topPlayers,
+            limit: limitNum,
+            chainId: leaderboardChainId,
+            applicationId: applicationId
+        });
+        
+    } catch (error) {
+        console.error('❌ Помилка при отриманні топ гравців:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Внутрішня помилка сервера',
+            error: error.message
+        });
+    }
+});
+
+// Отримання загальної кількості гравців
+app.get('/total-players/:chainId', async (req, res) => {
+    try {
+        const { chainId } = req.params;
+        
+        if (!chainId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Chain ID обов\'язковий'
+            });
+        }
+
+        console.log(`🔍 Отримання загальної кількості гравців для додатку ${applicationId}...`);
+        
+        const query = `
+            query {
+                totalPlayers
+            }
+        `;
+        
+        const response = await fetch(`${NODE_SERVICE_URL}/chains/${leaderboardChainId}/applications/${applicationId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ query })
+        });
+
+        const result = await response.json();
+
+        if (result.errors) {
+            console.error('❌ GraphQL помилки:', result.errors);
+            return res.status(500).json({
+                success: false,
+                message: 'Помилка при отриманні загальної кількості гравців',
+                errors: result.errors
+            });
+        }
+
+        res.json({
+            success: true,
+            totalPlayers: result.data.totalPlayers,
+            chainId: leaderboardChainId,
+            applicationId: applicationId
+        });
+        
+    } catch (error) {
+        console.error('❌ Помилка при отриманні загальної кількості гравців:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Внутрішня помилка сервера',
+            error: error.message
+        });
+    }
+});
+
+// Перевірка чи це leaderboard chain
+app.get('/is-leaderboard-chain/:chainId', async (req, res) => {
+    try {
+        const { chainId } = req.params;
+        
+        if (!chainId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Chain ID обов\'язковий'
+            });
+        }
+
+        console.log(`🔍 Перевірка чи це leaderboard chain для додатку ${applicationId}...`);
+        
+        const query = `
+            query {
+                isLeaderboardChain
+                leaderboardChainId
+            }
+        `;
+        
+        const response = await fetch(`${NODE_SERVICE_URL}/chains/${chainId}/applications/${applicationId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ query })
+        });
+        
+        const result = await response.json();
+        
+        if (result.errors) {
+            console.error('❌ GraphQL помилки:', result.errors);
+            return res.status(500).json({
+                success: false,
+                message: 'Помилка при перевірці leaderboard chain',
+                errors: result.errors
+            });
+        }
+        
+        res.json({
+            success: true,
+            isLeaderboardChain: result.data.isLeaderboardChain,
+            leaderboardChainId: result.data.leaderboardChainId,
+            chainId: chainId,
+            applicationId: applicationId
+        });
+        
+    } catch (error) {
+        console.error('❌ Помилка при перевірці leaderboard chain:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Внутрішня помилка сервера',
+            error: error.message
+        });
+    }
+});
+
 // Запуск сервера
 app.listen(port, () => {
     console.log(`🎮 Player Name Orchestrator запущено на http://localhost:${port}`);
     console.log(`📋 Доступні endpoints:`);
     console.log(`   GET  /                              - Головна сторінка`);
     console.log(`   GET  /status                        - Статус системи`);
-    console.log(`   POST /publish-app                  - Публікація додатку`);
+    console.log(`   GET  /application-id                - Отримати Application ID`);
+    console.log(`   GET  /leaderboard-chain-id          - Отримати Leaderboard Chain ID`);
+    console.log(`   POST /set-application-id            - Встановити Application ID`);
     console.log(`   POST /create-chain                 - Створення ланцюга`);
-    console.log(`   POST /create-application           - Створення додатку`);
     console.log(`   POST /set-player-name              - Встановлення імені`);
     console.log(`   GET  /get-player-name/:chain/:app  - Отримання імені`);
     console.log(`   POST /add-coins                    - Додавання монет`);
@@ -1012,7 +1304,17 @@ app.listen(port, () => {
     console.log(`   POST /remove-all-mobs              - Видалення всіх мобів`);
     console.log(`   GET  /get-mob-health/:chain/:app/:mob - Отримання здоров'я моба`);
     console.log(`   GET  /get-all-mobs/:chain/:app     - Отримання всіх мобів`);
-    console.log(`   GET  /bytecode-id                  - Bytecode ID`);
+    console.log(`   GET  /check-chains                 - Перевірка ланцюгів`);
+    console.log(``);
+    console.log(`🏆 Leaderboard endpoints:`);
+    console.log(`   POST /setup-leaderboard            - Налаштувати лідерборд`);
+    console.log(`   POST /submit-score                 - Подати результат`);
+    console.log(`   POST /reset-leaderboard            - Скинути лідерборд`);
+
+    console.log(`   GET  /global-leaderboard/:chainId  - Отримати глобальний лідерборд`);
+    console.log(`   GET  /top-players/:chainId/:limit  - Отримати топ гравців`);
+    console.log(`   GET  /total-players/:chainId       - Отримати кількість гравців`);
+    console.log(`   GET  /is-leaderboard-chain/:chainId - Перевірити leaderboard chain`);
     console.log(``);
     console.log(`🌐 Фронтенд: http://localhost:${port}/player-name-test-advanced.html`);
     console.log(`🔧 Фаусет: ${FAUCET_URL}`);
