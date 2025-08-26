@@ -5,9 +5,11 @@
  * Based on documentation: https://docs.linera.io/developers/frontend/interactivity
  */
 
-// Configuration
-const ORCHESTRATOR_URL = 'http://localhost:3001';
+// Configuration - Auto-detect environment
+const ORCHESTRATOR_URL = ENV_CONFIG ? ENV_CONFIG.ORCHESTRATOR_URL : 'http://localhost:3001';
 const LEADERBOARD_CHAIN_ID = '83990e573e43c72806fe93036de3418b9d3e57108e1cf4dabb6b5893b3f1a3b2';
+
+console.log('🌐 Using orchestrator URL:', ORCHESTRATOR_URL);
 
 // Global state
 let userChainId = null;

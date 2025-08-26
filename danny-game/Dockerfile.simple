@@ -1,0 +1,54 @@
+# Lightweight Docker setup for Danny Game VPS deployment
+FROM node:18-alpine
+
+# Install system dependencies
+RUN apk add --no-cache \
+    curl \
+    bash \
+    git \
+    python3 \
+    make \
+    g++ \
+    && rm -rf /var/cache/apk/*
+
+# Install Rust and Linera
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
+RUN rustup target add wasm32-unknown-unknown
+
+# Install Linera (using pre-built if available)
+RUN cargo install linera-service linera-client --git https://github.com/linera-io/linera-protocol.git --tag v0.14.2
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files first for better caching
+COPY package*.json ./
+RUN npm ci
+
+# Copy application files
+COPY player-name-orchestrator.js ./
+COPY danny-game/frontend ./frontend/
+COPY danny-game/cargo.toml ./
+COPY danny-game/src ./src/
+COPY danny-game/rust-toolchain.toml ./
+
+# Build the contract
+RUN cargo build --release --target wasm32-unknown-unknown
+
+# Create startup script
+COPY simple-start.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/simple-start.sh
+
+# Create directories
+RUN mkdir -p /app/wallet /app/data
+
+# Expose ports
+EXPOSE 3001 8080 8082
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s \
+    CMD curl -f http://localhost:3001/status || exit 1
+
+# Start script
+CMD ["simple-start.sh"]
